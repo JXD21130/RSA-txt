@@ -1,0 +1,926 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RSA Decryptor</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@300;400;600;700&display=swap');
+
+:root {
+  --bg:       #080c10;
+  --panel:    #0d1117;
+  --border:   #1a2535;
+  --accent:   #00ffe0;
+  --accent2:  #005f54;
+  --dim:      #2a3a4a;
+  --text:     #c8d8e8;
+  --muted:    #4a6070;
+  --ok:       #39ff14;
+  --err:      #ff3860;
+  --warn:     #ffcc00;
+  --mono:     'Share Tech Mono', monospace;
+  --sans:     'Rajdhani', sans-serif;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 40px 20px 60px;
+  position: relative;
+  overflow-x: hidden;
+}
+
+/* Grid background */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(0,255,224,.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,255,224,.03) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Glow orb */
+body::after {
+  content: '';
+  position: fixed;
+  top: -200px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 700px;
+  height: 400px;
+  background: radial-gradient(ellipse, rgba(0,255,224,.06) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.wrapper {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 820px;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+/* ── Header ── */
+header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.logo {
+  font-family: var(--sans);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .3em;
+  color: var(--accent);
+  text-transform: uppercase;
+  opacity: .7;
+}
+
+h1 {
+  font-family: var(--sans);
+  font-size: 42px;
+  font-weight: 700;
+  letter-spacing: .05em;
+  color: #fff;
+  text-align: center;
+  line-height: 1;
+}
+
+h1 span { color: var(--accent); }
+
+.subtitle {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--muted);
+  letter-spacing: .08em;
+}
+
+/* ── Drop zone ── */
+#drop-zone {
+  border: 1px dashed var(--dim);
+  border-radius: 4px;
+  background: var(--panel);
+  padding: 48px 32px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color .2s, background .2s, box-shadow .2s;
+  position: relative;
+  overflow: hidden;
+}
+
+#drop-zone::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(0,255,224,.03) 0%, transparent 60%);
+  pointer-events: none;
+}
+
+#drop-zone:hover,
+#drop-zone.drag-over {
+  border-color: var(--accent);
+  background: #0d1a20;
+  box-shadow: 0 0 30px rgba(0,255,224,.08), inset 0 0 30px rgba(0,255,224,.03);
+}
+
+#drop-zone .icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+  display: block;
+  filter: grayscale(1) brightness(.6);
+  transition: filter .2s;
+}
+
+#drop-zone:hover .icon,
+#drop-zone.drag-over .icon {
+  filter: none;
+}
+
+#drop-zone .dz-title {
+  font-family: var(--sans);
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 6px;
+}
+
+#drop-zone .dz-sub {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted);
+  letter-spacing: .06em;
+}
+
+#file-input { display: none; }
+
+/* ── Or paste ── */
+.separator {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: .1em;
+}
+.separator::before,
+.separator::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+/* ── Textarea paste ── */
+#paste-area {
+  width: 100%;
+  min-height: 140px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 12px;
+  padding: 14px 16px;
+  resize: vertical;
+  outline: none;
+  transition: border-color .2s, box-shadow .2s;
+  line-height: 1.6;
+}
+
+#paste-area::placeholder { color: var(--muted); }
+
+#paste-area:focus {
+  border-color: var(--accent2);
+  box-shadow: 0 0 16px rgba(0,255,224,.06);
+}
+
+/* ── Seed row ── */
+.seed-row {
+  display: flex;
+  gap: 12px;
+  align-items: flex-end;
+}
+
+.field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+}
+
+.field-group label {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: .12em;
+  color: var(--muted);
+  text-transform: uppercase;
+}
+
+.field-group input {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 13px;
+  padding: 10px 14px;
+  outline: none;
+  transition: border-color .2s;
+  width: 100%;
+}
+
+.field-group input:focus { border-color: var(--accent2); }
+.field-group input::placeholder { color: var(--muted); }
+
+/* ── Decrypt button ── */
+#decrypt-btn {
+  background: transparent;
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  font-family: var(--sans);
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: .15em;
+  text-transform: uppercase;
+  padding: 12px 32px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background .2s, box-shadow .2s, color .2s;
+  white-space: nowrap;
+  align-self: flex-end;
+}
+
+#decrypt-btn:hover {
+  background: rgba(0,255,224,.08);
+  box-shadow: 0 0 24px rgba(0,255,224,.2);
+}
+
+#decrypt-btn:disabled {
+  border-color: var(--dim);
+  color: var(--muted);
+  cursor: not-allowed;
+  box-shadow: none;
+  background: transparent;
+}
+
+/* ── Status bar ── */
+#status {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: .06em;
+  padding: 8px 14px;
+  border-radius: 4px;
+  border-left: 3px solid var(--muted);
+  background: rgba(255,255,255,.02);
+  color: var(--muted);
+  display: none;
+}
+#status.ok   { border-color: var(--ok);  color: var(--ok); }
+#status.err  { border-color: var(--err); color: var(--err); }
+#status.warn { border-color: var(--warn);color: var(--warn); }
+
+/* ── Results panel ── */
+#results {
+  display: none;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.result-block {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.result-block-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  background: rgba(0,255,224,.03);
+  border-bottom: 1px solid var(--border);
+}
+
+.result-block-header .label {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.result-block-header .badge {
+  font-family: var(--mono);
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 2px;
+  background: rgba(0,255,224,.08);
+  color: var(--accent);
+  letter-spacing: .06em;
+}
+
+.result-block-body {
+  padding: 16px;
+  font-family: var(--mono);
+  font-size: 13px;
+  line-height: 1.7;
+  word-break: break-all;
+  white-space: pre-wrap;
+  color: var(--text);
+}
+
+.result-block-body.big {
+  font-family: var(--sans);
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: .04em;
+  word-break: break-word;
+  color: #fff;
+  text-shadow: 0 0 20px rgba(0,255,224,.3);
+}
+
+.kv-grid {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 4px 16px;
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+.kv-grid .k { color: var(--muted); }
+.kv-grid .v { color: var(--text); word-break: break-all; }
+
+/* copy btn */
+.copy-btn {
+  background: transparent;
+  border: 1px solid var(--dim);
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: .08em;
+  padding: 3px 10px;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: all .15s;
+}
+.copy-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+/* ── Parsed file info ── */
+#file-info {
+  display: none;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted);
+  padding: 8px 14px;
+  background: rgba(0,255,224,.03);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  letter-spacing: .04em;
+}
+
+#file-info span { color: var(--accent); }
+
+/* scan line animation on decrypt */
+@keyframes scanline {
+  0%   { top: -4px; }
+  100% { top: 100%; }
+}
+.scanning::after {
+  content: '';
+  position: absolute;
+  left: 0; right: 0;
+  top: -4px;
+  height: 4px;
+  background: linear-gradient(transparent, var(--accent), transparent);
+  animation: scanline .6s ease-in-out forwards;
+  pointer-events: none;
+}
+</style>
+</head>
+<body>
+<div class="wrapper">
+
+  <header>
+    <div class="logo">RSA Tools</div>
+    <h1>DESCIFRADOR <span>RSA</span></h1>
+    <div class="subtitle">// sube o pega tu fichero .txt con claves PEM y mensaje cifrado</div>
+  </header>
+
+  <!-- Drop zone -->
+  <div id="drop-zone" onclick="document.getElementById('file-input').click()">
+    <span class="icon">🔒</span>
+    <div class="dz-title">Arrastra tu fichero .txt aquí</div>
+    <div class="dz-sub">o haz clic para seleccionarlo</div>
+    <input type="file" id="file-input" accept=".txt,text/plain">
+  </div>
+
+  <div class="separator">O PEGA EL CONTENIDO DIRECTAMENTE</div>
+
+  <textarea id="paste-area" placeholder="Pega aquí el contenido del fichero .txt con las claves PEM y el mensaje cifrado...&#10;&#10;Ejemplo:&#10;-----BEGIN RSA PUBLIC KEY-----&#10;...&#10;-----END RSA PUBLIC KEY-----&#10;&#10;-----BEGIN RSA ENCRYPTED MESSAGE WITH E-----&#10;...&#10;-----END RSA ENCRYPTED MESSAGE WITH E-----"></textarea>
+
+  <!-- File info -->
+  <div id="file-info"></div>
+
+  <!-- Seed + button -->
+  <div class="seed-row">
+    <div class="field-group">
+      <label>Seed del abecedario (opcional)</label>
+      <input type="text" id="seed-input" placeholder="Déjalo vacío si no se usó seed">
+    </div>
+    <button id="decrypt-btn" onclick="descifrar()">▶ DESCIFRAR</button>
+  </div>
+
+  <!-- Status -->
+  <div id="status"></div>
+
+  <!-- Results -->
+  <div id="results">
+
+    <div class="result-block" id="block-keys" style="display:none">
+      <div class="result-block-header">
+        <div class="label">Claves detectadas</div>
+        <div class="badge" id="badge-keys">—</div>
+      </div>
+      <div class="result-block-body">
+        <div class="kv-grid" id="kv-keys"></div>
+      </div>
+    </div>
+
+    <div class="result-block" id="block-msg-e" style="display:none">
+      <div class="result-block-header">
+        <div class="label">Mensaje cifrado con E → descifrado con D</div>
+        <button class="copy-btn" onclick="copiar('decoded-e')">copiar</button>
+      </div>
+      <div class="result-block-body big" id="decoded-e"></div>
+      <div class="result-block-body" id="decoded-e-nums" style="font-size:11px;color:var(--muted);border-top:1px solid var(--border)"></div>
+    </div>
+
+    <div class="result-block" id="block-msg-d" style="display:none">
+      <div class="result-block-header">
+        <div class="label">Mensaje cifrado con D → descifrado con E</div>
+        <button class="copy-btn" onclick="copiar('decoded-d')">copiar</button>
+      </div>
+      <div class="result-block-body big" id="decoded-d"></div>
+      <div class="result-block-body" id="decoded-d-nums" style="font-size:11px;color:var(--muted);border-top:1px solid var(--border)"></div>
+    </div>
+
+    <div class="result-block" id="block-msg-gen" style="display:none">
+      <div class="result-block-header">
+        <div class="label">Mensaje cifrado (genérico) → descifrado con D</div>
+        <button class="copy-btn" onclick="copiar('decoded-gen')">copiar</button>
+      </div>
+      <div class="result-block-body big" id="decoded-gen"></div>
+      <div class="result-block-body" id="decoded-gen-nums" style="font-size:11px;color:var(--muted);border-top:1px solid var(--border)"></div>
+    </div>
+
+  </div>
+
+</div>
+
+<script>
+// ──────────────────────────────────────────────
+//  BigInt RSA helpers
+// ──────────────────────────────────────────────
+
+function modpow(base, exp, mod) {
+  base = BigInt(base); exp = BigInt(exp); mod = BigInt(mod);
+  if (mod === 1n) return 0n;
+  let result = 1n;
+  base = base % mod;
+  while (exp > 0n) {
+    if (exp % 2n === 1n) result = result * base % mod;
+    exp = exp >> 1n;
+    base = base * base % mod;
+  }
+  return result;
+}
+
+// ──────────────────────────────────────────────
+//  DER / PEM parsers
+// ──────────────────────────────────────────────
+
+function pemToDer(pem) {
+  const lines = pem.trim().split('\n').filter(l => !l.startsWith('-----'));
+  const b64 = lines.join('');
+  const bin = atob(b64);
+  return Uint8Array.from(bin, c => c.charCodeAt(0));
+}
+
+function decodeDerTlv(data, offset) {
+  const tag = data[offset++];
+  let lb = data[offset++];
+  let length;
+  if (lb < 0x80) {
+    length = lb;
+  } else if (lb === 0x81) {
+    length = data[offset++];
+  } else if (lb === 0x82) {
+    length = (data[offset] << 8) | data[offset+1];
+    offset += 2;
+  } else throw new Error('DER length not supported');
+  const value = data.slice(offset, offset + length);
+  return { tag, value, next: offset + length };
+}
+
+function decodeDerInteger(bytes) {
+  let result = 0n;
+  for (const b of bytes) result = (result << 8n) | BigInt(b);
+  return result;
+}
+
+function parsePublicKeyPem(pem) {
+  const der = pemToDer(pem);
+  const seq = decodeDerTlv(der, 0);
+  if (seq.tag !== 0x30) throw new Error('Expected SEQUENCE');
+  let { value } = seq;
+  const nTlv = decodeDerTlv(value, 0);
+  const n = decodeDerInteger(nTlv.value);
+  const eTlv = decodeDerTlv(value, nTlv.next);
+  const e = decodeDerInteger(eTlv.value);
+  return { n, e };
+}
+
+function parsePrivateKeyPem(pem) {
+  const der = pemToDer(pem);
+  const seq = decodeDerTlv(der, 0);
+  if (seq.tag !== 0x30) throw new Error('Expected SEQUENCE');
+  const { value } = seq;
+  let off = 0;
+  const ver = decodeDerTlv(value, off); off = ver.next; // version
+  const nT  = decodeDerTlv(value, off); off = nT.next;  const n = decodeDerInteger(nT.value);
+  const eT  = decodeDerTlv(value, off); off = eT.next;  const e = decodeDerInteger(eT.value);
+  const dT  = decodeDerTlv(value, off); off = dT.next;  const d = decodeDerInteger(dT.value);
+  const pT  = decodeDerTlv(value, off); off = pT.next;  const p = decodeDerInteger(pT.value);
+  const qT  = decodeDerTlv(value, off); off = qT.next;  const q = decodeDerInteger(qT.value);
+  return { n, e, d, p, q };
+}
+
+// ──────────────────────────────────────────────
+//  Mensaje cifrado PEM (formato propio)
+// ──────────────────────────────────────────────
+
+function parseMensajePem(pem) {
+  const data = pemToDer(pem);
+  const nums = [];
+  let i = 0;
+  while (i < data.length) {
+    const signo = data[i++];
+    const longitud = (data[i] << 24) | (data[i+1] << 16) | (data[i+2] << 8) | data[i+3];
+    i += 4;
+    const numBytes = data.slice(i, i + longitud);
+    i += longitud;
+    let valor = 0n;
+    for (const b of numBytes) valor = (valor << 8n) | BigInt(b);
+    if (signo === 1) valor = -valor;
+    nums.push(valor);
+  }
+  return nums;
+}
+
+// ──────────────────────────────────────────────
+//  Abecedario
+// ──────────────────────────────────────────────
+
+const ABECEDARIO_BASE = {
+  a:1,b:2,c:3,d:4,e:5,f:6,g:7,h:8,i:9,j:10,
+  k:11,l:12,m:13,n:14,o:15,p:16,q:17,r:18,s:19,t:20,
+  u:21,v:22,w:23,x:24,y:25,z:26
+};
+
+const MARCADOR_DIGITO = -1n;
+const OFFSET_DIGITO = 27n;
+
+function construirAbecedario(seed) {
+  const letras = 'abcdefghijklmnopqrstuvwxyz'.split('');
+  if (!seed) return { abc: {...ABECEDARIO_BASE}, n2l: Object.fromEntries(Object.entries(ABECEDARIO_BASE).map(([k,v])=>[v,k])) };
+
+  // seed tipo "1-2-3-..." con 26 números
+  const partes = seed.split('-').map(Number);
+  if (partes.length === 26 && partes.every(n => !isNaN(n))) {
+    const abc = {};
+    letras.forEach((l, i) => abc[l] = partes[i]);
+    const n2l = {};
+    Object.entries(abc).forEach(([k,v]) => n2l[v] = k);
+    return { abc, n2l };
+  }
+
+  // seed tipo string → shuffle con LCG simple (mismo algoritmo que Python random con seed string)
+  // Usamos el mismo método: seededShuffle con Python's Mersenne Twister emulado en JS
+  // Simplificación: usamos un LCG básico suficiente para reproducir el shuffle
+  const numeros = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26];
+  pyRandomShuffle(numeros, seed);
+  const abc = {};
+  letras.forEach((l, i) => abc[l] = numeros[i]);
+  const n2l = {};
+  Object.entries(abc).forEach(([k,v]) => n2l[v] = k);
+  return { abc, n2l };
+}
+
+// Emulación del shuffle de Python (Mersenne Twister seeded con string)
+// Usamos una implementación MT19937 compatible
+function pyRandomShuffle(arr, seedStr) {
+  // Convertir seed string a número como Python
+  let seedNum = 0;
+  for (let i = 0; i < seedStr.length; i++) {
+    seedNum = (seedNum * 1000003 + seedStr.charCodeAt(i)) | 0;
+    seedNum = seedNum & 0xffffffff;
+  }
+  // MT19937
+  const mt = new Uint32Array(624);
+  mt[0] = seedNum >>> 0;
+  for (let i = 1; i < 624; i++) {
+    mt[i] = (Math.imul(1812433253, mt[i-1] ^ (mt[i-1] >>> 30)) + i) >>> 0;
+  }
+  let idx = 624;
+
+  function generate() {
+    if (idx >= 624) {
+      for (let i = 0; i < 624; i++) {
+        const y = (mt[i] & 0x80000000) + (mt[(i+1) % 624] & 0x7fffffff);
+        mt[i] = mt[(i+397) % 624] ^ (y >>> 1);
+        if (y % 2 !== 0) mt[i] ^= 2567483615;
+      }
+      idx = 0;
+    }
+    let y = mt[idx++];
+    y ^= y >>> 11;
+    y ^= (y << 7) & 2636928640;
+    y ^= (y << 15) & 4022730752;
+    y ^= y >>> 18;
+    return y >>> 0;
+  }
+
+  function randBelow(n) {
+    // Python's randbelow uses rejection sampling
+    const k = Math.ceil(Math.log2(n + 1));
+    let r;
+    do { r = generate() >>> (32 - k); } while (r >= n);
+    return r;
+  }
+
+  // Python's random.shuffle uses Fisher-Yates from the end
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = randBelow(i + 1);
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+}
+
+function numerosATexto(numeros, n2l) {
+  const resultado = [];
+  let i = 0;
+  while (i < numeros.length) {
+    const v = numeros[i];
+    if (v === 0n) {
+      resultado.push(' ');
+    } else if (v === MARCADOR_DIGITO) {
+      i++;
+      if (i < numeros.length) {
+        const digito = Number(numeros[i] - OFFSET_DIGITO);
+        if (digito >= 0 && digito <= 9) resultado.push(String(digito));
+      }
+    } else {
+      const vn = Number(v);
+      if (n2l[vn]) resultado.push(n2l[vn]);
+      else resultado.push(`[${v}]`);
+    }
+    i++;
+  }
+  return resultado.join('');
+}
+
+// ──────────────────────────────────────────────
+//  Extracción de bloques PEM del fichero
+// ──────────────────────────────────────────────
+
+function extraerBloquePem(texto, tipo) {
+  // tipo puede ser parcial, ej: "RSA PUBLIC KEY", "RSA PRIVATE KEY", "RSA ENCRYPTED MESSAGE"
+  const re = new RegExp(
+    `-----BEGIN ${tipo}-----[\\s\\S]*?-----END ${tipo}-----`,
+    'g'
+  );
+  return texto.match(re) || [];
+}
+
+function detectarBloques(texto) {
+  // Busca cualquier bloque -----BEGIN ... -----
+  const re = /-----BEGIN ([^-]+)-----[\s\S]*?-----END \1-----/g;
+  const bloques = [];
+  let m;
+  while ((m = re.exec(texto)) !== null) {
+    bloques.push({ tipo: m[1].trim(), pem: m[0] });
+  }
+  return bloques;
+}
+
+// ──────────────────────────────────────────────
+//  Drag & drop / file input
+// ──────────────────────────────────────────────
+
+const dropZone = document.getElementById('drop-zone');
+const fileInput = document.getElementById('file-input');
+const pasteArea = document.getElementById('paste-area');
+const fileInfo  = document.getElementById('file-info');
+
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  if (file) leerFichero(file);
+});
+fileInput.addEventListener('change', () => {
+  if (fileInput.files[0]) leerFichero(fileInput.files[0]);
+});
+
+function leerFichero(file) {
+  const reader = new FileReader();
+  reader.onload = ev => {
+    pasteArea.value = ev.target.result;
+    fileInfo.innerHTML = `Fichero cargado: <span>${file.name}</span> — ${(file.size/1024).toFixed(1)} KB`;
+    fileInfo.style.display = 'block';
+    mostrarEstado('Fichero cargado. Pulsa DESCIFRAR.', 'warn');
+  };
+  reader.readAsText(file);
+}
+
+// ──────────────────────────────────────────────
+//  UI helpers
+// ──────────────────────────────────────────────
+
+function mostrarEstado(msg, tipo) {
+  const el = document.getElementById('status');
+  el.textContent = msg;
+  el.className = tipo || '';
+  el.style.display = 'block';
+}
+
+function copiar(id) {
+  const el = document.getElementById(id);
+  navigator.clipboard.writeText(el.textContent).catch(() => {});
+}
+
+function setBlock(id, visible) {
+  document.getElementById(id).style.display = visible ? 'flex' : 'none';
+  if (visible) document.getElementById(id).style.flexDirection = 'column';
+}
+
+// ──────────────────────────────────────────────
+//  DESCIFRAR
+// ──────────────────────────────────────────────
+
+function descifrar() {
+  const texto = pasteArea.value.trim();
+  if (!texto) { mostrarEstado('Primero sube o pega un fichero.', 'err'); return; }
+
+  const seed = document.getElementById('seed-input').value.trim();
+  const { abc, n2l } = construirAbecedario(seed);
+
+  // Detectar todos los bloques PEM
+  const bloques = detectarBloques(texto);
+
+  if (bloques.length === 0) {
+    mostrarEstado('No se encontraron bloques PEM en el texto.', 'err');
+    return;
+  }
+
+  // Separar por tipo
+  let pubKey = null, privKey = null;
+  const mensajes = []; // { tipo, pem, cifradoCon }
+
+  for (const b of bloques) {
+    const t = b.tipo.toUpperCase();
+    if (t === 'RSA PUBLIC KEY') {
+      try { pubKey = parsePublicKeyPem(b.pem); } catch(ex) { console.warn('pub key:', ex); }
+    } else if (t === 'RSA PRIVATE KEY') {
+      try { privKey = parsePrivateKeyPem(b.pem); } catch(ex) { console.warn('priv key:', ex); }
+    } else if (t.includes('ENCRYPTED MESSAGE WITH E')) {
+      mensajes.push({ tipo: 'E', pem: b.pem });
+    } else if (t.includes('ENCRYPTED MESSAGE WITH D')) {
+      mensajes.push({ tipo: 'D', pem: b.pem });
+    } else if (t.includes('ENCRYPTED MESSAGE')) {
+      mensajes.push({ tipo: 'GEN', pem: b.pem });
+    }
+  }
+
+  // Determinar claves disponibles
+  let n = null, e = null, d = null;
+
+  if (privKey) {
+    n = privKey.n; e = privKey.e; d = privKey.d;
+  } else if (pubKey) {
+    n = pubKey.n; e = pubKey.e;
+  }
+
+  if (!n) {
+    mostrarEstado('No se encontró ninguna clave RSA válida (PUBLIC KEY o PRIVATE KEY).', 'err');
+    return;
+  }
+
+  if (mensajes.length === 0) {
+    mostrarEstado('No se encontró ningún mensaje cifrado (RSA ENCRYPTED MESSAGE).', 'err');
+    // Mostrar igualmente las claves
+  }
+
+  // Mostrar claves
+  const kvKeys = document.getElementById('kv-keys');
+  kvKeys.innerHTML = '';
+  const addKV = (k, v) => {
+    const kEl = document.createElement('div'); kEl.className = 'k'; kEl.textContent = k;
+    const vEl = document.createElement('div'); vEl.className = 'v'; vEl.textContent = v;
+    kvKeys.appendChild(kEl); kvKeys.appendChild(vEl);
+  };
+  addKV('n', n.toString());
+  addKV('e', e.toString());
+  if (d) addKV('d', d.toString());
+  if (privKey) {
+    addKV('p', privKey.p.toString());
+    addKV('q', privKey.q.toString());
+  }
+  const badgeKeys = document.getElementById('badge-keys');
+  badgeKeys.textContent = privKey ? 'PRIV + PUB' : 'SOLO PUB';
+  setBlock('block-keys', true);
+
+  document.getElementById('results').style.display = 'flex';
+
+  if (mensajes.length === 0) {
+    mostrarEstado('Claves mostradas. No había mensaje cifrado que descifrar.', 'ok');
+    return;
+  }
+
+  // Descifrar cada mensaje
+  let exito = 0;
+  for (const msg of mensajes) {
+    let nums;
+    try { nums = parseMensajePem(msg.pem); }
+    catch(ex) { console.warn('parse msg:', ex); continue; }
+
+    let descifrados = null;
+    let exponente = null;
+    let blockId = null, decodedId = null, numsId = null;
+
+    if (msg.tipo === 'E') {
+      // Cifrado con e → descifrar con d
+      if (!d) { mostrarEstado('El mensaje fue cifrado con E pero no hay clave privada (d) disponible.', 'warn'); continue; }
+      exponente = d;
+      blockId = 'block-msg-e'; decodedId = 'decoded-e'; numsId = 'decoded-e-nums';
+    } else if (msg.tipo === 'D') {
+      // Cifrado con d → descifrar con e
+      exponente = e;
+      blockId = 'block-msg-d'; decodedId = 'decoded-d'; numsId = 'decoded-d-nums';
+    } else {
+      // Genérico → intentar con d primero, luego e
+      exponente = d || e;
+      blockId = 'block-msg-gen'; decodedId = 'decoded-gen'; numsId = 'decoded-gen-nums';
+    }
+
+    descifrados = nums.map(c => {
+      if (c < 0n) return MARCADOR_DIGITO;
+      if (c === 0n) return 0n;
+      return modpow(c, exponente, n);
+    });
+
+    const texto_dec = numerosATexto(descifrados, n2l);
+    const numsStr = descifrados.map(v => v.toString()).join(' ');
+
+    document.getElementById(decodedId).textContent = texto_dec || '[vacío]';
+    document.getElementById(numsId).textContent = 'nums: ' + numsStr;
+    setBlock(blockId, true);
+    exito++;
+  }
+
+  if (exito > 0) {
+    mostrarEstado(`✓ ${exito} mensaje(s) descifrado(s) correctamente.`, 'ok');
+  } else {
+    mostrarEstado('No se pudo descifrar ningún mensaje. Comprueba las claves y el formato.', 'err');
+  }
+}
+
+// Permitir descifrar con Enter en el campo seed
+document.getElementById('seed-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') descifrar();
+});
+</script>
+</body>
+</html>
